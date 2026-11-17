@@ -1,0 +1,17 @@
+# 构建产物
+bin/
+obj/
+*.dll
+*.pdb
+
+# SolidWorks 的专有 interop 文件，绝对不要提交
+SolidWorks.Interop.*.dll
+
+# 运行时产物
+addin.log
+*.log
+
+# 编辑器
+.vs/
+*.user
+*.suo
