@@ -1,5 +1,22 @@
-// SolidWorks WASD 视角插件
-// 编译：csc /target:library /platform:x64 /out:SwWasd.dll ...
+// SPDX-License-Identifier: MIT
+//
+// solidworks-wasd — WASD keyboard view navigation for SolidWorks
+// https://github.com/F1ameyqq/solidworks-wasd
+//
+// 单文件插件。W/S 上下平移、A/D 左右平移、Q/E 缩放，F9 开关。
+// 键盘钩子跑在 SolidWorks 进程内，按键会被吞掉，不与 SW 快捷键冲突；
+// 仅在「SW 是前台窗口」且「焦点不在文本框」时拦截。
+//
+// 构建：
+//   csc -target:library -platform:x64 -out:bin\SwWasd.dll
+//       -r:<SW安装目录>\SolidWorks.Interop.sldworks.dll
+//       -r:<SW安装目录>\SolidWorks.Interop.swpublished.dll
+//       -r:System.Windows.Forms.dll -r:System.Drawing.dll
+//       src\SwWasdAddin.cs
+//
+// 或者直接跑：powershell -ExecutionPolicy Bypass -File scriptsuild.ps1
+//
+// Copyright (c) 2026 solidworks-wasd contributors
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;

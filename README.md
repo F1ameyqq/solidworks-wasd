@@ -1,20 +1,46 @@
-# SW-WASD — 给 SolidWorks 加 WASD 视角控制
+# solidworks-wasd
 
-用键盘操SolidWorks 的视角：**W/S 上下平移、A/D 左右平移、Q/E 缩放**，不用再反复「中键拖 + 滚轮」。
+**WASD keyboard navigation for SolidWorks** — a native add-in. Pan with WASD, zoom with Q/E, toggle with `F9`.
 
-一个原生 SolidWorks 插件（Add-in），不是外挂脚本——键盘钩子跑在 SW 自己进程里，按键会被真正**吞掉**，不会和 SW 的快捷键打架；而且只在「SW 是前台窗口」且「焦点不在输入框」时才拦截，你在对话框里打字照常。
+SolidWorks 没有游戏式视角操作：转视角要按住中键拖，平移要 Ctrl+中键，用久了手腕很难受。这个插件把 **WASD 平移、Q/E 缩放**加进来，而且不会和 SW 自带的快捷键打架。
 
-```
-F9    开关
-W / S 上 / 下平移
-A / D 左 / 右平移
-Q / E 缩小 / 放大
-Shift 加速
-```
+<!-- TODO: 放一张 demo.gif（WASD 推动视角的 5 秒录屏），比文字有说服力十倍 -->
 
 ---
 
-## 安装（三步）
+## Quick start (English)
+
+Requires Windows, SolidWorks 2018+ (x64), .NET Framework 4.x (preinstalled on Win10/11).
+
+```powershell
+# 1. build — no Visual Studio needed
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1
+
+# 2. install — prompts for UAC once
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+
+# 3. restart SolidWorks → Tools → Add-ins → check "WASD View"
+```
+
+Open any part, press **F9**, then use WASD / QE.
+
+Why an add-in and not a macro or an AutoHotkey script: the keyboard hook runs **inside SolidWorks' own process**, so key presses are genuinely swallowed (no collision with SW shortcuts), and it only intercepts when SW is the foreground window *and* focus is not in a text box — typing a dimension still works.
+
+---
+
+## 按键
+
+| 键 | 动作 |
+|---|---|
+| `F9` | 开关 |
+| `W` / `S` | 上 / 下平移 |
+| `A` / `D` | 左 / 右平移 |
+| `Q` / `E` | 缩小 / 放大 |
+| `Shift` | 加速 |
+
+---
+
+## 安装
 
 需要：Windows + SolidWorks（2018 及以上，x64）+ .NET Framework 4.x（Win10/11 自带）。
 
@@ -28,9 +54,10 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 # 3. 重启 SolidWorks → 工具 → 插件 → 勾选「WASD View」
 ```
 
-装完打开任意零件，按 **F9** 就能用。
+`install.ps1` 做三件事：把 SolidWorks 的 interop DLL 拷到 `bin\`、用 RegAsm 注册 COM 类、在 `HKLM\SOFTWARE\SolidWorks\Addins` 下登记插件。
 
-> `install.ps1` 做三件事：把 SolidWorks 的 interop DLL 拷到 `bin\`、用 RegAsm 注册 COM 类、在 `HKLM\SOFTWARE\SolidWorks\Addins` 下登记插件。
+> 构建时找不到 SolidWorks 目录？用 `-SwDir` 指定：
+> `powershell -File scripts\build.ps1 -SwDir "C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS"`
 
 ---
 
@@ -39,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 参数在 `bin\swwasd.ini`，**改完不用重编译、不用重启 SW**——按两次 F9（关→开）就热加载：
 
 ```ini
-# 平移速度 = 视野包围盒对角线 × 这个系数（每帧）
+# 平移速度 = 当前视野包围盒对角线 × 这个系数（每帧）
 pan=0.0001
 
 # 缩放倍率，每帧。1.03 ≈ 60fps 下每秒放大约 5 倍
@@ -49,7 +76,9 @@ zoom=1.03
 frame=16
 ```
 
-手感调法：嫌慢把 `pan` 加到 `0.0002`，嫌快减到 `0.00005`。`pan` 是按**当前视野大小**自适应的，所以放大看细节时平移会自动变慢，不用两套参数。
+`pan` 是按**当前视野大小**自适应的，所以放大看细节时平移会自动变慢，不用维护两套参数。
+
+嫌慢把 `pan` 加到 `0.0002`，嫌快减到 `0.00005`。
 
 ---
 
@@ -59,13 +88,13 @@ frame=16
 powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
 ```
 
-（会反注册 COM、删掉插件登记项。`bin\` 目录自己删。）
+会反注册 COM、删掉两处插件登记项。`bin\` 目录自己删。
 
 ---
 
 ## 构建细节
 
-`scripts\build.ps1` 干的事，就一条命令：
+`scripts\build.ps1` 干的事，本质上就一条命令：
 
 ```
 csc -target:library -platform:x64 -out:bin\SwWasd.dll ^
@@ -79,27 +108,31 @@ csc -target:library -platform:x64 -out:bin\SwWasd.dll ^
 
 SolidWorks 安装目录按这个顺序找：`-SwDir` 参数 → 环境变量 `SWDIR` → `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS` → 在 `Program Files` 下扫。
 
+整个插件就一个源文件 `src\SwWasdAddin.cs`，约 400 行，改起来很直接。
+
 ---
 
 ## 工作原理
 
 | 做什么 | 用什么 |
 |---|---|
-| 拦按键 | `SetWindowsHookEx(WH_KEYBOARD_LL)`，装在 SW 进程内，返回 1 吞掉 |
-| 判断该不该拦 | 前台窗口 PID == 本进程 PID，且焦点控件 class 不是 Edit / RichEdit |
+| 拦按键 | `SetWindowsHookEx(WH_KEYBOARD_LL)`，装在 SW 进程内，回调返回 1 吞掉 |
+| 判断该不该拦 | 前台窗口 PID == 本进程 PID，且焦点控件 class 不是 `Edit` / `RichEdit` |
 | 平移 | `IModelView.TranslateBy(x, y)`，单位是**模型单位（米）**，所以按视野对角线自适应 |
 | 缩放 | `IModelView.ZoomByFactor(f)` |
-| 不卡顿 | `IModelView.StartDynamics()` / `StopDynamics()` |
-| 每帧驱动 | `System.Windows.Forms.Timer`（跑在 SW 主线程，COM 调用不用跨线程 marshal） |
+| 不卡顿 | `IModelView.StartDynamics()` / `StopDynamics()` 包住连续改动 |
+| 每帧驱动 | `System.Windows.Forms.Timer`（跑在 SW 主线程，COM 调用不需要跨线程 marshal） |
+| 记按键状态 | 自己处理 `WM_KEYDOWN` / `WM_KEYUP`，**不用** `GetAsyncKeyState`——键被钩子吞掉后系统状态不更新 |
 
 ---
 
 ## 已知限制
 
-- **只支持 Windows + SolidWorks**。API 是 SW 专有的。
-- **正交视图下"前后移动"没有意义**——SolidWorks 默认正交投影，往前推和放大在屏幕上是同一个效果。所以这里 W/S 做的是平移而不是推进。想要真正的第一人称漫游，得开透视（`AddPerspective`）再自己算相机位姿，那是另一个量级的工作。
-- 平移的**绝对速度**依赖当前视图范围：视图里东西越小，平移越慢。这是刻意的（缩放后自动变慢），但如果你想要恒定速度，把 `GetPanStep()` 里的自适应改成常数。
-- 已经测过 SolidWorks 2026。更老的版本没实测，`SetAddinCallbackInfo2` 之类的 API 在各版本间有细微差别，遇到问题请提 issue 并附 `bin\addin.log`。
+- **只支持 Windows + SolidWorks**，API 是 SW 专有的。
+- **正交视图下「前后移动」没有意义**。SolidWorks 默认正交投影，往前推和放大在屏幕上是同一个效果，所以 W/S 做的是平移而不是推进。想要真正的第一人称漫游，得开透视（`AddPerspective`）再自己算相机位姿，是另一个量级的工作。
+- 平移的**绝对速度**依赖当前视图范围：视图里东西越小，平移越慢。这是刻意的。
+- 只在 **SolidWorks 2026** 上实测过。更老的版本没有实测，`SetAddinCallbackInfo2` 之类的 API 在各版本间有细微差别，遇到问题请提 issue 并附上 `bin\addin.log`。
+- 没做「按住某键临时加速」之外的手势，也没有 UI 配置界面——参数走 ini 文件。
 
 ---
 
@@ -115,15 +148,13 @@ F9 -> 开
 执行运动 k=1 W=True A=False S=False D=False
 ```
 
-常见情况：
-
 | 日志表现 | 原因 |
 |---|---|
-| 日志文件都不存在 | 插件没被加载。检查 工具→插件 里有没有勾上；`bin\` 下有没有 `SolidWorks.Interop.*.dll` |
+| 日志文件都不存在 | 插件没被加载。检查「工具 → 插件」里有没有勾上，以及 `bin\` 下有没有 `SolidWorks.Interop.*.dll` |
 | 有 `ConnectToSW` 但按 F9 没 `F9 ->` | 键盘钩子没装上（权限 / 安全软件拦截） |
-| 有 `F9 ->` 但没 `执行运动` | 焦点判定把你挡了，或者 `held` 状态没记上 |
+| 有 `F9 ->` 但没 `执行运动` | 焦点判定挡住了，或者 `held` 状态没记上 |
 | 有 `执行运动` 但画面不动 | `TranslateBy` 单位问题，调 `pan` |
-| 按键完全没反应，SW 里也没有 | 插件列表里没勾，或需要重启 SW |
+| 勾不上 / 列表里没有 | 需要重启 SolidWorks；或 HKLM 登记失败（安装时没提权） |
 
 ---
 
@@ -133,10 +164,12 @@ F9 -> 开
 
 `SolidWorks.Interop.sldworks.dll`、`SolidWorks.Interop.swpublished.dll` 等是 Dassault Systèmes 的专有文件，受其许可协议约束。构建时从**你自己的 SolidWorks 安装目录**引用，安装时复制到你自己的 `bin\`，这些文件都在 `.gitignore` 里，不会被提交。
 
+本项目与 Dassault Systèmes 无关联，未获其背书。"SolidWorks" 是其所有者的商标，此处仅用于说明兼容性。
+
 使用本插件需要你自己持有合法的 SolidWorks 授权。
 
 ---
 
 ## License
 
-MIT — 见 [LICENSE](LICENSE)。
+[MIT](LICENSE) © 2026 solidworks-wasd contributors
